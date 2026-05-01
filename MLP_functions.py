@@ -1,6 +1,4 @@
 import numpy as np
-from scipy.stats import norm
-from random import random
 
 
 def initialise_params(input_size: int, hidden_size: int, output_size: int):
@@ -33,5 +31,20 @@ def forward_pass(params_dict: dict, X: np.ndarray):
     return A2, cache_dict
 
 
-def compute_loss(A2, true_label):
-    return
+def compute_loss(A2: np.ndarray, Y: np.ndarray):
+    # A2 and Y each have m rows (because we're feeding in m images all at once)
+    # Y is a matrix of arrays, where each array (row) has 0 everywhere except for a 1 at the index of the class
+    m = Y.shape[0]  # because this tells us how many rows (images) there are
+    # cross entropy loss finds the sum of the logs of the probabilities assigned to what was the true class
+    cross_entropy_loss = -1 / m * np.sum(Y * np.log(A2 + 1e-8))
+    return cross_entropy_loss
+
+
+def backward_pass(X: np.ndarray, Y: np.ndarray, cache_dict: dict, params_dict: dict):
+    A1 = cache_dict["A1"]
+    A2 = cache_dict["A2"]
+    # dZ2 is an mx10 matrix which contains the error for every class for every image
+    m = Y.shape[0]
+    dZ2 = A2 - Y
+    dW2 = 1 / m * np.matmul(A1.T, dZ2)
+    db2 = np.mean(dZ2, axis=0, keepdims=True)

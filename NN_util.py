@@ -17,7 +17,7 @@ def initialise_params(input_size: int, hidden_size: int, output_size: int):
     return params_dict
 
 
-def forward_pass(params_dict: dict, X: np.ndarray):
+def forward_pass(X: np.ndarray, params_dict: dict):
     W1 = params_dict["W1"]
     W2 = params_dict["W2"]
     b1 = params_dict["b1"]
@@ -40,9 +40,13 @@ def forward_pass(params_dict: dict, X: np.ndarray):
 
 
 def compute_loss(A2: np.ndarray, Y: np.ndarray):
+    """
+    This function outputs the loss at the current step for the purpose of printing. It's not actually used
+    in the function because the backward_pass function uses the derivative of cross-entropy loss instead of the value.
+    """
     # A2 and Y each have m rows (because we're feeding in m images all at once)
+    m = Y.shape[0]
     # Y is a matrix of arrays, where each array (row) has 0 everywhere except for a 1 at the index of the class
-    m = Y.shape[0]  # because this tells us how many rows (images) there are
     # cross entropy loss finds the sum of the logs of the probabilities assigned to what was the true class
     cross_entropy_loss = -1 / m * np.sum(Y * np.log(A2 + 1e-8))
     return cross_entropy_loss
@@ -101,12 +105,33 @@ def train_network(
     Y: np.ndarray,
     learning_rate: float,
 ):
-    NUM_CLASSES = 10
-    for i in range(0, epochs + 1):
-        input_size = X.shape[1]
-        params_dict = initialise_params(
-            input_size=input_size, hidden_size=hidden_size, output_size=output_size
-        )
+    # X is a matrix of image data. Each row represents data for an image, and each column represents a certain
+    # feature.
+    input_size = X.shape[1]  # get number of
+    params_dict = initialise_params(
+        input_size=input_size, hidden_size=hidden_size, output_size=output_size
+    )
+    for i in range(epochs + 1):
         A2, cache_dict = forward_pass(params_dict=params_dict, X=X)
-        one_hot_Y = np.eye(NUM_CLASSES)[]
         loss = compute_loss(A2, Y)
+        gradients_dict = backward_pass(X, Y, cache_dict, params_dict)
+        params_dict = update_parameters(params_dict, gradients_dict, learning_rate)
+        if i % 100 == 0:
+            print(f"Loss after {i} epochs: {loss}")
+    return params_dict
+
+
+def make_prediction(X: np.ndarray, params_dict: dict, classes_array: list):
+    A2, _ = forward_pass(X=X, params_dict=params_dict)
+    # find the index of the maximum value in each row of A2
+    most_likely_indices = np.argmax(A2, axis=1)
+    # find the highest probabilities in each row
+    highest_probs = np.max(A2, axis=1)
+    predicted_classes = np.array(classes_array)[most_likely_indices]
+    return predicted_classes, highest_probs
+
+
+def calculate_accuracy(preds, true_labels):
+    correct_guesses = preds == true_labels
+    accuracy = np.mean(correct_guesses)
+    return accuracy

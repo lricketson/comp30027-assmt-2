@@ -104,6 +104,7 @@ def train_network(
     epochs: int,
     Y: np.ndarray,
     learning_rate: float,
+    print_progress: bool = False,
 ):
     # X is a matrix of image data. Each row represents data for an image, and each column represents a certain
     # feature.
@@ -116,7 +117,7 @@ def train_network(
         loss = compute_loss(A2, Y)
         gradients_dict = backward_pass(X, Y, cache_dict, params_dict)
         params_dict = update_parameters(params_dict, gradients_dict, learning_rate)
-        if i % 100 == 0:
+        if (print_progress) and (i % 100 == 0):
             print(f"Loss after {i} epochs: {loss}")
     return params_dict
 

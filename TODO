@@ -1,0 +1,7 @@
+Do LBP on the images data and feed this into KNN and neural net
+Implement resnet features on each of those ML algorithms
+
+rn:
+fix knn scaling logic
+do pca on tier 1 and tier 2 data
+do validation on knn and neural net to find best hyperparams with tier 1 and tier 2 data

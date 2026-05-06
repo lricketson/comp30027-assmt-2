@@ -1,21 +1,19 @@
 from sklearn.model_selection import train_test_split
-from constants import LEAKAGE_COLS
-from main import scale_data, one_hot_encode
+from constants import LEAKAGE_COLS, TARGET_COL
+from preprocessing import scale_data, one_hot_encode
 from sklearn.preprocessing import LabelEncoder
 from nn_util import train_network, make_prediction, calculate_accuracy
 from knn_util import do_knn
+from lightgbm import LGBMClassifier
+import pandas as pd
 
 
-def knn_testing_pipeline(training_features, k, scale):
-    train_df, val_df = train_test_split(
-        training_features, test_size=0.2, random_state=2718
+def knn_testing_pipeline(feature_df: pd.DataFrame, k, scale):
+    X = feature_df.drop(columns=LEAKAGE_COLS)
+    Y = feature_df[TARGET_COL]
+    X_train, X_val, y_train, y_val = train_test_split(
+        X, Y, test_size=0.2, random_state=2718
     )
-    X_train = train_df.drop(columns=LEAKAGE_COLS, errors="ignore")
-    y_train = train_df["class_name"]
-
-    X_val = val_df.drop(columns=LEAKAGE_COLS, errors="ignore")
-    y_val = val_df["class_name"]
-
     if scale:
         X_train, X_val = scale_data(
             X_train=X_train, X_test=X_val, ignore_keywords=["hog"], return_numpy=False
@@ -23,6 +21,8 @@ def knn_testing_pipeline(training_features, k, scale):
 
     correct_preds = 0
     total_tests = len(X_val)
+
+    predictions = []
 
     print(f"Testing {total_tests} unseen images...")
     for i in range(total_tests):
@@ -36,26 +36,33 @@ def knn_testing_pipeline(training_features, k, scale):
             k=k,
         )
 
+        predictions.append[prediction]
+
         if prediction == true_label:
             correct_preds += 1
 
     accuracy = correct_preds / total_tests
     print(f"Final accuracy: {accuracy:.4f}")
-    return accuracy
+    return accuracy, y_val, predictions
 
 
 def test_k_vals(df, k_values, scale):
     best_accuracy = 0
     best_k = None
+    best_y_val = None
+    best_predictions = None
+
     for k in k_values:
         print(f"K-val: {k}")
-        accuracy = knn_testing_pipeline(df, k, scale)
+        accuracy, y_val, predictions = knn_testing_pipeline(df, k, scale)
         if accuracy > best_accuracy:
             best_accuracy = accuracy
             best_k = k
+            best_y_val = y_val
+            best_predictions = predictions
     print("Best hyperparameters found!")
     print(f"Best k: {best_k} | Accuracy: {best_accuracy:.3f}")
-    return best_k, best_accuracy
+    return best_k, best_accuracy, best_y_val, best_predictions
 
 
 def run_nn_grid_search(
@@ -67,18 +74,14 @@ def run_nn_grid_search(
     """
     # 1. Data Splitting
     X = feature_df.drop(columns=LEAKAGE_COLS, errors="ignore")
-    Y = feature_df["class_name"]
-
-    X_train_temp, X_test, y_train_temp, y_test = train_test_split(
-        X, Y, test_size=0.2, random_state=2718, stratify=Y
-    )
+    Y = feature_df[TARGET_COL]
 
     X_train, X_val, y_train, y_val = train_test_split(
-        X_train_temp,
-        y_train_temp,
+        X,
+        Y,
         test_size=0.2,
         random_state=2718,
-        stratify=y_train_temp,
+        stratify=Y,
     )
 
     # 2. Scaling
@@ -105,6 +108,9 @@ def run_nn_grid_search(
         "best_hs": None,
         "best_accuracy": 0,
     }
+
+    best_model_params = None
+    best_predictions = None
 
     print("\nStarting search for best hyperparameters...")
     total_num_tests = len(learning_rates) * len(epoch_counts) * len(hidden_sizes)
@@ -143,6 +149,10 @@ def run_nn_grid_search(
                     best_hyperparams["best_lr"] = learning_rate
                     best_hyperparams["best_ec"] = epoch_count
                     best_hyperparams["best_hs"] = hidden_size
+
+                    best_model_params = params_dict
+                    best_predictions = predictions
+
                     # Print on a new line so it doesn't get overwritten by the progress bar
                     print(
                         f"\n---> New best! Accuracy: {accuracy * 100:.2f}% | LR: {learning_rate}, Epochs: {epoch_count}, HS: {hidden_size}"
@@ -160,4 +170,78 @@ def run_nn_grid_search(
         f"HS: {best_hyperparams['best_hs']}"
     )
 
-    return best_hyperparams
+    return best_hyperparams, best_model_params, y_val, best_predictions
+
+
+def run_lgbm_grid_search(
+    feature_df: pd.DataFrame,
+    learning_rates: list,
+    max_depths: list,
+    n_estimators_list: list,
+    ignore_scale_cols=["hog"],
+):
+    """
+    Runs an exhaustive search for LGBM hyperparameters.
+    """
+    X = feature_df.drop(columns=LEAKAGE_COLS)
+    Y = feature_df[TARGET_COL]
+    X_train, X_val, y_train, y_val = train_test_split(
+        X, Y, test_size=0.2, random_state=2718, stratify=Y
+    )
+    X_train_scaled, X_val_scaled = scale_data(
+        X_train=X_train,
+        X_test=X_val,
+        ignore_keywords=ignore_scale_cols,
+        return_numpy=False,
+    )
+    # LGBM requires encoded variables
+    label_encoder = LabelEncoder()
+    y_train_encoded = label_encoder.fit_transform(y_train)
+    y_val_encoded = label_encoder.transform(y_val)
+
+    best_hyperparams = {
+        "best_lr": None,
+        "best_depth": None,
+        "best_trees": None,
+        "best_accuracy": 0,
+    }
+
+    print("\nStarting search for best hyperparams...")
+
+    total_tests = len(learning_rates) * len(max_depths) * len(n_estimators_list)
+    tests_completed = 0
+
+    for lr in learning_rates:
+        for depth in max_depths:
+            for n_estimators in n_estimators_list:
+                proportion = tests_completed / total_tests
+                print(
+                    f"Grid Search Progress: {100 * proportion:.2f}% complete", end="\r"
+                )
+                model = LGBMClassifier(
+                    learning_rate=lr,
+                    max_depth=depth,
+                    n_estimators=n_estimators,
+                    objective="multiclass",  # means we have 3+ classes
+                    random_state=2718,
+                    n_jobs=-1,  # use all CPU cores
+                    verbose=-1,  # don't flood the terminal
+                )
+                model.fit(X_train_scaled, y_train_encoded)
+                accuracy = model.score(X_val_scaled, y_val_encoded)
+
+                if accuracy > best_hyperparams["best_accuracy"]:
+                    best_hyperparams["best_accuracy"] = accuracy
+                    best_hyperparams["best_lr"] = lr
+                    best_hyperparams["best_depth"] = depth
+                    best_hyperparams["best_trees"] = n_estimators
+                    best_model = model
+                    print(
+                        f"\n---> New best! Accuracy: {accuracy * 100:.2f}% | LR: {lr}, Depth: {depth}, Trees: {n_estimators}"
+                    )
+                tests_completed += 1
+    print("\nSearch over!")
+    print(
+        f"Best Accuracy: {best_hyperparams['best_accuracy'] * 100:.2f}% | LR: {best_hyperparams['best_lr']}, Depth: {best_hyperparams['best_depth']}, Trees: {best_hyperparams['best_trees']}"
+    )
+    return best_hyperparams, best_model

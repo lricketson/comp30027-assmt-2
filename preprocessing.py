@@ -1,7 +1,5 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from constants import LEAKAGE_COLS
 import numpy as np
 from feature_engineering import (
     build_feature_dataframe,
@@ -10,16 +8,16 @@ from feature_engineering import (
 )
 
 
-def create_tier1_ft_df():
+def create_tier1_ft_df(task_folder: str):
     """
     Creates the tier 1 feature dataset. This is data merged from hog_pca.csv, color_histogram.csv, and
     additional_features.csv.
     """
 
-    train_metadata = pd.read_csv("./datasets/task1_data/train_metadata.csv")
-    hog_pca = pd.read_csv("./datasets/task1_data/hog_pca.csv")
-    colour_df = pd.read_csv("./datasets/task1_data/color_histogram.csv")
-    additional_ft_df = pd.read_csv("./datasets/task1_data/additional_features.csv")
+    train_metadata = pd.read_csv(f"./datasets/{task_folder}/train_metadata.csv")
+    hog_pca = pd.read_csv(f"./datasets/{task_folder}/hog_pca.csv")
+    colour_df = pd.read_csv(f"./datasets/{task_folder}/color_histogram.csv")
+    additional_ft_df = pd.read_csv(f"./datasets/{task_folder}/additional_features.csv")
 
     temp_df = pd.merge(left=hog_pca, right=train_metadata, on="image_id", how="inner")
     temp2_df = pd.merge(left=colour_df, right=temp_df, on="image_id", how="inner")
@@ -30,30 +28,36 @@ def create_tier1_ft_df():
     return tier1_ft_df
 
 
-def create_tier2_ft_df():
+def create_tier2_ft_df(task_folder: str):
     """
     Creates the tier 2 feature dataset. This is everything present in tier 1, plus Local Binary Patterns data.
     """
-    tier1_ft_df = create_tier1_ft_df()
-    metadata_df = pd.read_csv("./datasets/task1_data/train_metadata.csv")
+    tier1_ft_df = create_tier1_ft_df(task_folder=task_folder)
+    metadata_df = pd.read_csv(f"./datasets/{task_folder}/train_metadata.csv")
 
     lbp_df = build_feature_dataframe(
-        metadata_df=metadata_df, extractor_func=run_lbp, col_prefix="lbp"
+        metadata_df=metadata_df,
+        extractor_func=run_lbp,
+        col_prefix="lbp",
+        task_folder=task_folder,
     )
     tier2_ft_df = pd.merge(left=tier1_ft_df, right=lbp_df, on="image_id", how="inner")
     return tier2_ft_df
 
 
-def create_tier3_ft_df():
+def create_tier3_ft_df(task_folder: str):
     """
     Creates the tier 3 feature dataset. This is features extracted by the pre-trained model ResNet.
     """
-    metadata_df = pd.read_csv("./datasets/task1_data/train_metadata.csv")
+    metadata_df = pd.read_csv(f"./datasets/{task_folder}/train_metadata.csv")
 
     resnet_extractor_func = create_resnet_extractor()
 
     tier3_ft_df = build_feature_dataframe(
-        metadata_df=metadata_df, extractor_func=resnet_extractor_func, col_prefix="res"
+        metadata_df=metadata_df,
+        extractor_func=resnet_extractor_func,
+        col_prefix="res",
+        task_folder=task_folder,
     )
     tier3_ft_df = pd.merge(
         left=tier3_ft_df, right=metadata_df, on="image_id", how="inner"

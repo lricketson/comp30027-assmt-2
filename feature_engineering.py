@@ -9,12 +9,14 @@ from skimage import io, img_as_ubyte
 
 
 def build_feature_dataframe(
-    metadata_df, extractor_func, col_prefix, base_dir="./datasets/task1_data/"
+    metadata_df, extractor_func, col_prefix, task_folder: str, base_dir="./datasets/"
 ):
     """
     A universal engine that loops through images, runs any provided feature extraction
     function, and returns a formatted DataFrame.
     """
+    directory = os.path.join(base_dir, task_folder)
+
     features_list = []
     image_ids = []
     total_images = len(metadata_df)
@@ -23,7 +25,7 @@ def build_feature_dataframe(
 
     for index, row in metadata_df.iterrows():
         img_id = row["image_id"]
-        img_path = os.path.join(base_dir, row["image_path"])
+        img_path = os.path.join(directory, row["image_path"])
 
         try:
             # The master loop doesn't care what extractor we're using
@@ -77,44 +79,6 @@ def extract_lbp_features(image, radius=1, n_points=8):
     hist /= hist.sum() + 1e-7  # to prevent division by 0
 
     return hist
-
-
-def generate_lbp_dataframe(
-    metadata_df: pd.DataFrame, base_image_path="./datasets/task1_data"
-):
-    """
-    Loops through the metadata df, loads images, and extracts its LBP features, returning them as a pandas DataFrame.
-    """
-    lbp_features_list = []
-    image_ids = []
-
-    print("Starting LBP feature extraction")
-    total_images = len(metadata_df)
-
-    # loop over every image in metadata_df
-    for index, row in metadata_df.iterrows():
-        img_id = row["image_id"]
-        # create exact path to that image
-        img_path = os.path.join(base_image_path, row["image_path"])
-        try:
-            # load image into NumPy array
-            image = io.imread(img_path)
-            lbp_hist = extract_lbp_features(image)
-            lbp_features_list.append(lbp_hist)
-            image_ids.append(img_id)
-        except Exception as e:
-            print(f"\nFailed to load image at {img_path}: {e}")
-        if (index + 1) % 100 == 0:
-            print(f"Extracted {index + 1}/{total_images} images...", end="\r")
-    print("LBP extraction complete!")
-    # convert list of lists into pandas DataFrame
-    num_lbp_features = len(lbp_features_list[0])
-    col_names = [f"lbp_{i}" for i in range(num_lbp_features)]
-    lbp_df = pd.DataFrame(lbp_features_list, columns=col_names)
-
-    # add image_id back in so we can merge on it
-    lbp_df["image_id"] = image_ids
-    return lbp_df
 
 
 # --- LBP WRAPPER ---

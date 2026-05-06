@@ -1,7 +1,4 @@
-Do LBP on the images data and feed this into KNN and neural net
-Implement resnet features on each of those ML algorithms
-
-rn:
-fix knn scaling logic DONE
-do pca on tier 1 and tier 2 data
-do validation on knn and neural net to find best hyperparams with tier 1 and tier 2 data
+- change all grid search functions in pipelines.py to return the best model so that we can get confusion matrix from it
+- plot confusion matrices for each model's run through the validation set
+- work out task 2 data pipeline
+- use the gemini wrapper functions for doing the confusion matrices

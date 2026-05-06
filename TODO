@@ -1,4 +1,1 @@
-- change all grid search functions in pipelines.py to return the best model so that we can get confusion matrix from it
-- plot confusion matrices for each model's run through the validation set
 - work out task 2 data pipeline
-- use the gemini wrapper functions for doing the confusion matrices

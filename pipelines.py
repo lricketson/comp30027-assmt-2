@@ -36,7 +36,7 @@ def knn_testing_pipeline(feature_df: pd.DataFrame, k, scale):
             k=k,
         )
 
-        predictions.append[prediction]
+        predictions.append(prediction)
 
         if prediction == true_label:
             correct_preds += 1
@@ -205,6 +205,8 @@ def run_lgbm_grid_search(
         "best_trees": None,
         "best_accuracy": 0,
     }
+    best_model = None
+    best_predictions = None
 
     print("\nStarting search for best hyperparams...")
 
@@ -222,7 +224,7 @@ def run_lgbm_grid_search(
                     learning_rate=lr,
                     max_depth=depth,
                     n_estimators=n_estimators,
-                    objective="multiclass",  # means we have 3+ classes
+                    objective="multiclass",  # used when we have 3+ classes
                     random_state=2718,
                     n_jobs=-1,  # use all CPU cores
                     verbose=-1,  # don't flood the terminal
@@ -236,6 +238,8 @@ def run_lgbm_grid_search(
                     best_hyperparams["best_depth"] = depth
                     best_hyperparams["best_trees"] = n_estimators
                     best_model = model
+                    raw_preds = model.predict(X_val_scaled)
+                    best_predictions = label_encoder.inverse_transform(raw_preds)
                     print(
                         f"\n---> New best! Accuracy: {accuracy * 100:.2f}% | LR: {lr}, Depth: {depth}, Trees: {n_estimators}"
                     )
@@ -244,4 +248,4 @@ def run_lgbm_grid_search(
     print(
         f"Best Accuracy: {best_hyperparams['best_accuracy'] * 100:.2f}% | LR: {best_hyperparams['best_lr']}, Depth: {best_hyperparams['best_depth']}, Trees: {best_hyperparams['best_trees']}"
     )
-    return best_hyperparams, best_model
+    return best_hyperparams, best_model, y_val, best_predictions

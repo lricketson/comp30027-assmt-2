@@ -83,7 +83,6 @@ def train_resnet_model(model, train_loader, val_loader, epochs=10):
         running_corrects = 0
 
         for inputs, labels in train_loader:
-            print(f"Inputs type: {type(inputs)} | Labels type: {type(labels)}")
             inputs, labels = inputs.to(device), labels.to(device)
 
             optimiser.zero_grad()

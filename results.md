@@ -16,4 +16,10 @@ tier 3 data
 
 Light GBM:
 tier 1 data
-Best Accuracy: 60.80% | LR: 0.1, Depth: 7, Trees: 200
+Best Accuracy: 36.90% | LR: 0.01, Depth: 7, Trees: 50
+
+tier 2 data
+Best Accuracy: 41.67% | LR: 0.2, Depth: 7, Trees: 50
+
+tier 3 data
+Best Accuracy: 84.52% | LR: 0.1, Depth: 7, Trees: 200

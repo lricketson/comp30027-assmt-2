@@ -7,6 +7,10 @@ from PIL import Image
 import os
 import copy
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from torch.utils.data import DataLoader
+from constants import TASK2_DATA
 
 
 def create_unfrozen_resnet(num_classes=10):
@@ -48,6 +52,10 @@ class ImageDataset(Dataset):
 
 
 def train_resnet_model(model, train_loader, val_loader, epochs=10):
+    """
+    Trains an unfrozen ResNet model with different parameters and checks its results on a validation
+    set, to find what the best weights are.
+    """
     # move model to gpu
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
@@ -128,3 +136,56 @@ def train_resnet_model(model, train_loader, val_loader, epochs=10):
 
     model.load_state_dict(best_model_weights)
     return model
+
+
+def run_resnet_training(
+    epochs=30, batch_size=32, weights_path="./finetuned_resnet_weights.pth"
+):
+    """
+    Checks for existing weights. If none exist, prepares data and trains the ResNet.
+    """
+
+    if os.path.exists(weights_path):
+        print(f"Saved weights already exist at '{weights_path}'. Skipping training.")
+        print("If you want to retrain, delete or rename the existing .pth file first.")
+        return
+    print("No saved weights found. Preparing data for training...")
+
+    metadata = pd.read_csv(f"./datasets/{TASK2_DATA}/train_metadata.csv")
+    # encode bird labels to integers 0-9
+    le = LabelEncoder()
+    metadata["encoded_label"] = le.fit_transform(metadata["class_name"])
+
+    train_df, val_df = train_test_split(
+        metadata, test_size=0.2, random_state=2718, stratify=metadata["encoded_label"]
+    )
+
+    # image preprocessing that ImageNet requires
+    preprocess = transforms.Compose(
+        [
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+
+    # build data loaders
+    train_dataset = ImageDataset(
+        train_df, base_dir=f"./datasets/{TASK2_DATA}/", transform=preprocess
+    )
+    val_dataset = ImageDataset(
+        val_df, base_dir=f"./datasets/{TASK2_DATA}/", transform=preprocess
+    )
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+    print("Initialising unfrozen ResNet...")
+    model = create_unfrozen_resnet(num_classes=10)
+
+    best_model = train_resnet_model(
+        model, train_loader=train_loader, val_loader=val_loader, epochs=epochs
+    )
+    torch.save(best_model.state_dict(), weights_path)
+    print(f"Training complete and new weights saved to {weights_path}.")

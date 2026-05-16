@@ -3,6 +3,8 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix
 import numpy as np
 from pipelines import test_k_vals, run_nn_grid_search, run_lgbm_grid_search
+import torch
+from sklearn.metrics import accuracy_score
 
 
 def plot_model_confusion_matrix(
@@ -111,3 +113,50 @@ def evaluate_lgbm_tier(
         title=plot_title,
         save_path=save_path,
     )
+
+
+def evaluate_resnet(model, val_loader, le, title, save_path):
+    """Runs inference on a PyTorch model, prints accuracy, and plots confusion matrix."""
+    print(f"\n========== Evaluating {title} ==========")
+
+    device = torch.device(
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps" if torch.backends.mps.is_available() else "cpu"
+    )
+    model.to(device)
+    model.eval()
+
+    all_preds = []
+    all_labels = []
+
+    with torch.no_grad():
+        for images, labels in val_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, preds = torch.max(outputs, 1)
+
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    y_true = np.array(all_labels)
+    y_pred = np.array(all_preds)
+
+    accuracy = accuracy_score(y_true, y_pred)
+    print(f"Validation Accuracy: {accuracy * 100:.2f}%")
+
+    # ---> THE FIX <---
+    # Translate the integer arrays back into string names for the plotter
+    y_true_str = le.inverse_transform(y_true)
+    y_pred_str = le.inverse_transform(y_pred)
+    class_names = le.classes_  # Gets all unique class names in the correct order
+
+    plot_model_confusion_matrix(
+        y_true=y_true_str,
+        y_pred=y_pred_str,
+        classes=class_names,
+        title=title,
+        save_path=save_path,
+    )
+
+    return y_true, y_pred
